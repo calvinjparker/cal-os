@@ -42,13 +42,14 @@ export async function getCalendarEvents(): Promise<{ events: FeedEvent[]; errors
       const feed = key.replace(/^CALENDAR_ICS_/, "");
       const label = feed.toLowerCase();
       try {
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const events = eventsInRange(await res.text(), label, from, to).map((e) => ({ ...e, feed }));
         return { events, error: null };
       } catch (err) {
         // Report the calendar by its key name only; never log the private URL.
-        return { events: [], error: `${label}: ${err instanceof Error ? err.message : "failed"}` };
+        const reason = err instanceof Error && err.name === "TimeoutError" ? "timed out" : err instanceof Error ? err.message : "failed";
+        return { events: [], error: `${label}: ${reason}` };
       }
     }),
   );

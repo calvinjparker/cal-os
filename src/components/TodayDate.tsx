@@ -6,7 +6,7 @@ import { useSyncExternalStore } from "react";
 // not the day the site was last built.
 function formatToday() {
   return new Date()
-    .toLocaleDateString("en-CA", { weekday: "short", month: "short", day: "numeric" })
+    .toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).replace(",", "")
     .toUpperCase();
 }
 

@@ -1,5 +1,5 @@
 import type { FeedEvent } from "@/lib/calendar";
-import { TIMEZONE, torontoDay, torontoTime } from "@/lib/time";
+import { dateLabel, torontoDate, torontoDay, torontoTime } from "@/lib/time";
 
 // Rental rooms come from calendar feeds named CALENDAR_ICS_STR_ROOM_<N>.
 // Each event on a room's calendar is a stay; its title says who's staying.
@@ -17,17 +17,23 @@ export function roomName(feed: string) {
 
 export type RoomStatus = {
   room: string;
-  current: { guest: string; until: string } | null; // until = checkout, e.g. "Tue 25"
-  next: { guest: string; from: string } | null; // from = arrival, e.g. "Thu 27"
+  current: Stay | null;
+  next: Stay | null;
 };
 
-export type RoomMoment = { kind: "in" | "out"; room: string; guest: string; time: string };
+// checkIn / checkOut are labels like "Sun Nov 22" (plus "3:00 PM" for timed stays).
+export type Stay = { guest: string; checkIn: string; checkOut: string };
 
-// Date-only strings ("2026-11-25") are calendar dates; format them at noon so no
-// time zone can push them onto the wrong day.
-function dayLabel(value: string, allDay: boolean) {
-  const d = allDay ? new Date(`${value}T12:00:00Z`) : new Date(value);
-  return d.toLocaleDateString("en-CA", { timeZone: allDay ? "UTC" : TIMEZONE, weekday: "short", day: "numeric" });
+export type RoomMoment = { kind: "in" | "out"; room: string; guest: string; time: string; sortKey: string };
+
+function stayLabel(value: string, allDay: boolean) {
+  if (allDay) return dateLabel(value);
+  const d = new Date(value);
+  return `${torontoDate(d)}, ${torontoTime(d)}`;
+}
+
+function toStay(ev: FeedEvent): Stay {
+  return { guest: ev.title, checkIn: stayLabel(ev.start, ev.allDay), checkOut: stayLabel(ev.end, ev.allDay) };
 }
 
 function startDay(ev: FeedEvent) {
@@ -55,8 +61,8 @@ export function roomStatuses(events: FeedEvent[], roomFeeds: string[], now: Date
     const next = stays.find((e) => e !== current && !hasStarted(e, now, today));
     return {
       room: roomName(feed),
-      current: current ? { guest: current.title, until: dayLabel(current.end, current.allDay) } : null,
-      next: next ? { guest: next.title, from: dayLabel(next.start, next.allDay) } : null,
+      current: current ? toStay(current) : null,
+      next: next ? toStay(next) : null,
     };
   });
 }
@@ -69,10 +75,10 @@ export function roomMomentsToday(events: FeedEvent[], now: Date): RoomMoment[] {
     if (!isRoomFeed(ev.feed)) continue;
     const room = roomName(ev.feed);
     if (startDay(ev) === today) {
-      out.push({ kind: "in", room, guest: ev.title, time: ev.allDay ? "IN" : torontoTime(new Date(ev.start)) });
+      out.push({ kind: "in", room, guest: ev.title, time: ev.allDay ? "IN" : torontoTime(new Date(ev.start)), sortKey: ev.allDay ? "0" : `1${ev.start}` });
     }
     if (endDay(ev) === today && startDay(ev) !== today) {
-      out.push({ kind: "out", room, guest: ev.title, time: ev.allDay ? "OUT" : torontoTime(new Date(ev.end)) });
+      out.push({ kind: "out", room, guest: ev.title, time: ev.allDay ? "OUT" : torontoTime(new Date(ev.end)), sortKey: ev.allDay ? "0" : `1${ev.end}` });
     }
   }
   return out;

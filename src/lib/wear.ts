@@ -27,7 +27,9 @@ function hourLabel(key: string) {
 // (or 10 PM if nothing's on), using the coldest "feels like", rain/snow and wind in that span.
 export function whatToWear(hours: Hour[], outings: Outing[], now: Date): WearAdvice | null {
   const lastEnd = outings.reduce((max, o) => Math.max(max, new Date(o.end).getTime()), 0);
-  const fromKey = localHourKey(now);
+  // Between midnight and 6 AM, plan for the coming day (from 7 AM), not the hours you're asleep.
+  const nowKey = localHourKey(now);
+  const fromKey = Number(nowKey.slice(11, 13)) < 6 ? `${nowKey.slice(0, 10)}T07:00` : nowKey;
   const tenPmKey = `${fromKey.slice(0, 10)}T22:00`;
   const threeHoursKey = localHourKey(new Date(now.getTime() + 3 * 3600_000));
   const toKey =

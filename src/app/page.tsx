@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { getTodaySchedule, type TodaySchedule } from "@/lib/today";
 import { whatToWear } from "@/lib/wear";
 import { getWeather } from "@/lib/weather";
+import { getIntake } from "@/lib/keep";
 
 export default function Today() {
   return (
@@ -15,6 +16,9 @@ export default function Today() {
       <main className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 pt-5">
         <Suspense fallback={<TodaySkeleton />}>
           <TodayContent />
+        </Suspense>
+        <Suspense fallback={null}>
+          <IntakePanel />
         </Suspense>
       </main>
 
@@ -143,6 +147,34 @@ function NextUpTile({ day }: { day: TodaySchedule }) {
         {day.nextUp && <span className="truncate font-type text-[11px] text-[#c9b994]">{day.nextUp.title}</span>}
       </div>
     </div>
+  );
+}
+
+// Open items on the GTD intake list in Google Keep (read-only: the Keep API can't edit notes).
+async function IntakePanel() {
+  await connection();
+  const { intake, error } = await getIntake();
+  if (!intake && !error) return null;
+  const open = intake?.items.filter((i) => !i.checked) ?? [];
+  return (
+    <section aria-labelledby="intake-heading" className="keycap flex flex-col gap-2 p-3.5">
+      <div className="flex items-baseline justify-between">
+        <h2 id="intake-heading" className="font-label text-[12px] font-semibold tracking-[0.18em] text-oxblood uppercase">Intake</h2>
+        <a href="https://keep.google.com/" className="font-type text-[11px] text-ink-muted underline">
+          {intake ? `${open.length} open · edit in Keep` : "Keep"}
+        </a>
+      </div>
+      {error && <p className="font-type text-[11px] text-stamp">Couldn&apos;t load Keep: {error}</p>}
+      {intake && open.length === 0 && <p className="font-type text-sm text-ink-muted">Inbox zero.</p>}
+      {open.length > 0 && (
+        <ul className="flex flex-col gap-1 text-sm">
+          {open.slice(0, 8).map((i, n) => (
+            <li key={n}>· {i.text}</li>
+          ))}
+          {open.length > 8 && <li className="font-type text-[11px] text-ink-muted">+ {open.length - 8} more</li>}
+        </ul>
+      )}
+    </section>
   );
 }
 

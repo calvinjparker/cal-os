@@ -40,6 +40,10 @@ export default function Today() {
           <OrderTicket />
         </Suspense>
 
+        <Suspense fallback={null}>
+          <RoomsPanel />
+        </Suspense>
+
         <FitsNow />
 
         <div className="flex gap-2.5">
@@ -89,8 +93,9 @@ async function OrderTicket() {
             const now = line.status === "now";
             return (
               <li key={line.id} className="flex gap-2.5">
-                <span className={`w-[58px] shrink-0 ${done ? "text-ink-faint" : ""} ${now ? "font-bold" : ""}`}>{line.time}</span>
+                <span className={`w-[64px] shrink-0 ${done ? "text-ink-faint" : ""} ${now ? "font-bold" : ""}`}>{line.time}</span>
                 <span className={`flex-1 ${done ? "text-ink-faint line-through" : ""} ${now ? "font-bold" : ""}`}>
+                  {line.tag && <span className="mr-1.5 bg-tolex px-1 py-px text-[10px] text-tolex-text">{line.tag}</span>}
                   {line.title}
                   {multiCalendar && line.calendar && <span className="ml-1.5 text-[10px] text-ink-muted">· {line.calendar}</span>}
                 </span>
@@ -104,6 +109,46 @@ async function OrderTicket() {
       {day.errors.length > 0 && (
         <p className="font-type text-[11px] text-stamp">Couldn&apos;t load: {day.errors.join(", ")}</p>
       )}
+    </section>
+  );
+}
+
+// Who's in each rental room, from the CALENDAR_ICS_STR_ROOM_* calendars.
+async function RoomsPanel() {
+  await connection();
+  const { rooms } = await getTodaySchedule(new Date());
+  if (rooms.length === 0) return null;
+
+  return (
+    <section aria-labelledby="rooms-heading" className="flex flex-col gap-2.5">
+      <h2 id="rooms-heading" className="font-label text-[13px] font-semibold tracking-[0.18em] text-oxblood uppercase">Rooms</h2>
+      <div className="grid grid-cols-2 gap-2.5">
+        {rooms.map((r) => (
+          <div key={r.room} className="keycap flex min-w-0 flex-col gap-1 p-3">
+            <div className="flex items-center justify-between">
+              <span className="font-label text-[11px] tracking-[0.16em] uppercase">{r.room}</span>
+              <span
+                role="img"
+                aria-label={r.current ? "Occupied" : "Empty"}
+                className={`size-2.5 rounded-full ${r.current ? "pilot" : "bg-[#b9b6ae] shadow-[inset_0_1px_1px_rgb(0_0_0/0.3)]"}`}
+              />
+            </div>
+            {r.current ? (
+              <>
+                <span className="truncate font-slab text-lg leading-tight font-bold">{r.current.guest}</span>
+                <span className="font-type text-[11px] text-ink-muted">until {r.current.until}</span>
+              </>
+            ) : (
+              <>
+                <span className="font-slab text-lg leading-tight font-bold text-ink-faint">Empty</span>
+                <span className="truncate font-type text-[11px] text-ink-muted">
+                  {r.next ? `next: ${r.next.guest} · ${r.next.from}` : "nothing booked"}
+                </span>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

@@ -66,10 +66,9 @@ async function listNotes(token: string): Promise<KeepNote[]> {
   for (let page = 0; page < 10; page++) {
     const url = new URL("https://keep.googleapis.com/v1/notes");
     url.searchParams.set("pageSize", "100");
-    url.searchParams.set("filter", "trashed = false");
     if (pageToken) url.searchParams.set("pageToken", pageToken);
     const res = await fetch(url, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(5000) });
-    if (!res.ok) throw new Error(`Keep list failed (${res.status})`);
+    if (!res.ok) throw new Error(`Keep list failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
     const data = (await res.json()) as { notes?: KeepNote[]; nextPageToken?: string };
     notes.push(...(data.notes ?? []));
     if (!data.nextPageToken) break;
@@ -92,7 +91,7 @@ export async function getIntake(): Promise<{ intake: Intake | null; error: strin
   if (!hasKeep()) return { intake: null, error: null };
   try {
     const notes = await listNotes(await accessToken());
-    const note = notes.find((n) => n.title?.includes(INTAKE_TITLE));
+    const note = notes.find((n) => !n.trashed && n.title?.includes(INTAKE_TITLE));
     if (!note) return { intake: null, error: `No Keep note titled "${INTAKE_TITLE}"` };
     const items = note.body?.list
       ? flatten(note.body.list.listItems)

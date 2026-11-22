@@ -21,11 +21,11 @@ async function signInWithGoogle() {
     provider: "google",
     options: { redirectTo: `${origin}/auth/callback`, queryParams: { prompt: "select_account" } },
   });
-  if (error || !data.url) redirect("/login?error=failed");
+  if (error || !data.url) redirect(`/login?error=failed&reason=${encodeURIComponent(error?.message ?? "no url")}`);
   redirect(data.url);
 }
 
-type Props = { searchParams: Promise<{ error?: string }> };
+type Props = { searchParams: Promise<{ error?: string; reason?: string }> };
 
 export default function LoginPage({ searchParams }: Props) {
   return (
@@ -58,6 +58,12 @@ export default function LoginPage({ searchParams }: Props) {
 }
 
 async function ErrorMessage({ searchParams }: Props) {
-  const { error } = await searchParams;
-  return error && MESSAGES[error] ? <p className="font-type text-sm text-stamp">{MESSAGES[error]}</p> : null;
+  const { error, reason } = await searchParams;
+  if (!error || !MESSAGES[error]) return null;
+  return (
+    <p className="font-type text-sm text-stamp">
+      {MESSAGES[error]}
+      {reason && <span className="block text-[11px] text-ink-muted">({reason})</span>}
+    </p>
+  );
 }

@@ -1,24 +1,22 @@
 import "server-only";
-import { calendarFeedNames, getCalendarEvents, hasCalendars, type FeedEvent } from "@/lib/calendar";
+import { cache } from "react";
+import { calendarFeedNames, getCalendarEvents, type FeedEvent } from "@/lib/calendar";
 import { isRoomFeed, roomMomentsToday, roomStatuses, type RoomStatus } from "@/lib/rooms";
-import { sample } from "@/lib/sample-data";
 import { formatDuration, torontoDay, torontoTime } from "@/lib/time";
 
 export type TicketLine = {
   id: string;
-  time: string; // "14:00", "ALL DAY", "IN" or "OUT"
+  time: string; // "8:00 PM", "ALL DAY", "IN" or "OUT"
+  sort: string; // sortable key: all-day/room lines first, then by start time
   title: string;
   status: "done" | "now" | "upcoming";
-  calendar?: string;
-  tag?: string; // e.g. "ROOM 1"
+  tag?: string; // e.g. "ROOM 1", "TUC"
 };
 
 export type TodaySchedule = {
-  source: "calendar" | "sample";
   lines: TicketLine[];
   upCount: number; // done + in progress
   nextUp: { title: string; in: string } | null;
-  calendars: string[];
   rooms: RoomStatus[];
   errors: string[];
 };
@@ -31,37 +29,29 @@ function isToday(ev: FeedEvent, today: string) {
   return startDay <= today && today <= endDay;
 }
 
-// Sort key: all-day first, then by time; "IN"/"OUT" sit with all-day lines.
-function sortKey(line: TicketLine) {
-  return /^\d/.test(line.time) ? `1${line.time}` : `0${line.time}`;
+// Your own calendars (env var named after an email, e.g. CALVIN_CALVINPARKER_COM)
+// get no tag; others get a short one, e.g. TUC_FLIGHT_CLUB -> "TUC".
+function feedTag(feed: string) {
+  if (/_(COM|CA|ORG|NET)$/.test(feed)) return undefined;
+  return feed.split("_")[0];
 }
 
-export async function getTodaySchedule(now: Date): Promise<TodaySchedule> {
-  if (!hasCalendars()) {
-    const lines = sample.schedule.map((s, i) => ({ id: String(i), time: s.time, title: s.title, status: s.status }));
-    return {
-      source: "sample",
-      lines,
-      upCount: lines.filter((l) => l.status !== "upcoming").length,
-      nextUp: { title: "Ultimate, Lamport", in: sample.leaveIn },
-      calendars: [],
-      rooms: [],
-      errors: [],
-    };
-  }
-
+// cache() makes every section of the page share one result per request,
+// so the calendars are fetched once per page load, not once per section.
+export const getTodaySchedule = cache(async (): Promise<TodaySchedule> => {
+  const now = new Date();
   const { events, errors } = await getCalendarEvents();
   const today = torontoDay(now);
 
-  // Personal calendars: every event today goes on the ticket.
   const personal = events.filter((ev) => !isRoomFeed(ev.feed));
   const todays = personal.filter((ev) => isToday(ev, today));
   const lines: TicketLine[] = todays.map((ev) => {
-    if (ev.allDay) return { id: ev.id, time: "ALL DAY", title: ev.title, status: "upcoming", calendar: ev.calendar };
+    const tag = feedTag(ev.feed);
+    if (ev.allDay) return { id: ev.id, time: "ALL DAY", sort: "0", title: ev.title, status: "upcoming", tag };
     const start = new Date(ev.start);
     const end = new Date(ev.end);
     const status = end <= now ? "done" : start <= now ? "now" : "upcoming";
-    return { id: ev.id, time: torontoTime(start), title: ev.title, status, calendar: ev.calendar };
+    return { id: ev.id, time: torontoTime(start), sort: `1${ev.start}`, title: ev.title, status, tag };
   });
 
   // Room calendars: only today's arrivals and departures go on the ticket.
@@ -69,24 +59,23 @@ export async function getTodaySchedule(now: Date): Promise<TodaySchedule> {
     lines.push({
       id: `${m.room}|${m.kind}|${m.guest}`,
       time: m.time,
+      sort: m.sortKey,
       title: `${m.kind === "in" ? "Check-in" : "Check-out"}: ${m.guest}`,
       status: "upcoming",
       tag: m.room.toUpperCase(),
     });
   }
-  lines.sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+  lines.sort((a, b) => a.sort.localeCompare(b.sort));
 
   // From the env vars, so a room with nothing booked still shows as empty.
   const roomFeeds = calendarFeedNames().filter(isRoomFeed).sort();
   const next = todays.find((ev) => !ev.allDay && new Date(ev.start) > now);
 
   return {
-    source: "calendar",
     lines,
     upCount: lines.filter((l) => l.status !== "upcoming").length,
     nextUp: next ? { title: next.title, in: formatDuration(new Date(next.start).getTime() - now.getTime()) } : null,
-    calendars: [...new Set(personal.map((e) => e.calendar))],
     rooms: roomStatuses(events, roomFeeds, now),
     errors,
   };
-}
+});

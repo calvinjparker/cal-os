@@ -5,9 +5,21 @@ export function torontoDay(d: Date) {
   return d.toLocaleDateString("en-CA", { timeZone: TIMEZONE });
 }
 
-// "14:00" in Toronto time.
+// "8:00 PM" in Toronto time (12-hour clock).
 export function torontoTime(d: Date) {
-  return d.toLocaleTimeString("en-GB", { timeZone: TIMEZONE, hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleTimeString("en-US", { timeZone: TIMEZONE, hour: "numeric", minute: "2-digit", hour12: true });
+}
+
+// "Sun Nov 22" for a moment, as seen in Toronto.
+export function torontoDate(d: Date) {
+  return d.toLocaleDateString("en-US", { timeZone: TIMEZONE, weekday: "short", month: "short", day: "numeric" }).replace(",", "");
+}
+
+// "Sun Nov 22" for a calendar date string "YYYY-MM-DD" (no time zone shifting).
+export function dateLabel(ymd: string) {
+  return new Date(`${ymd}T12:00:00Z`)
+    .toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" })
+    .replace(",", "");
 }
 
 // "4h 52m" / "35m"

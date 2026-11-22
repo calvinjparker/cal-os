@@ -30,8 +30,10 @@ export function hasCalendars() {
 // (two weeks so the Rooms panel can say who's arriving next).
 // Cached for a few minutes so the app isn't hitting Google on every page view.
 export async function getCalendarEvents(): Promise<{ events: FeedEvent[]; errors: string[] }> {
-  "use cache";
-  cacheLife("minutes");
+  "use cache: remote"; // shared across all servers, so most page loads skip fetching entirely
+  // Serve the last copy instantly and refresh it in the background every few minutes;
+  // keep it up to a day so the first visit after a quiet spell is still fast.
+  cacheLife({ stale: 60, revalidate: 300, expire: 86_400 });
 
   const now = Date.now();
   const from = new Date(now - 36 * 3600_000);
@@ -42,13 +44,14 @@ export async function getCalendarEvents(): Promise<{ events: FeedEvent[]; errors
       const feed = key.replace(/^CALENDAR_ICS_/, "");
       const label = feed.toLowerCase();
       try {
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const events = eventsInRange(await res.text(), label, from, to).map((e) => ({ ...e, feed }));
         return { events, error: null };
       } catch (err) {
         // Report the calendar by its key name only; never log the private URL.
-        return { events: [], error: `${label}: ${err instanceof Error ? err.message : "failed"}` };
+        const reason = err instanceof Error && err.name === "TimeoutError" ? "timed out" : err instanceof Error ? err.message : "failed";
+        return { events: [], error: `${label}: ${reason}` };
       }
     }),
   );

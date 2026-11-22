@@ -31,7 +31,9 @@ export function hasCalendars() {
 // Cached for a few minutes so the app isn't hitting Google on every page view.
 export async function getCalendarEvents(): Promise<{ events: FeedEvent[]; errors: string[] }> {
   "use cache: remote"; // shared across all servers, so most page loads skip fetching entirely
-  cacheLife("minutes");
+  // Serve the last copy instantly and refresh it in the background every few minutes;
+  // keep it up to a day so the first visit after a quiet spell is still fast.
+  cacheLife({ stale: 60, revalidate: 300, expire: 86_400 });
 
   const now = Date.now();
   const from = new Date(now - 36 * 3600_000);

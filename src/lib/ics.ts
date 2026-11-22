@@ -18,11 +18,19 @@ export function eventsInRange(ics: string, fallbackName: string, from: Date, to:
   }
   const calendarName = (root.getFirstPropertyValue("x-wr-calname") as string | null) ?? fallbackName;
 
-  const vevents = root.getAllSubcomponents("vevent");
+  // Big calendars hold years of one-off events. Drop the ones that clearly ended
+  // before the window by reading the raw date text, before doing any real parsing.
+  const cutoff = new Date(from.getTime() - 2 * 86_400_000).toISOString().slice(0, 10);
+  const vevents = root.getAllSubcomponents("vevent").filter((comp) => {
+    if (rawProp(comp, "rrule") || rawProp(comp, "recurrence-id")) return true;
+    const end = rawProp(comp, "dtend") ?? rawProp(comp, "dtstart");
+    return !end || end.slice(0, 10) >= cutoff;
+  });
+
   // Edited instances of a repeating event ("this event only") override the series.
+  const events = vevents.map((comp) => new ICAL.Event(comp));
   const overrides = new Map<string, ICAL.Event>();
-  for (const comp of vevents) {
-    const ev = new ICAL.Event(comp);
+  for (const ev of events) {
     if (ev.isRecurrenceException()) {
       overrides.set(`${ev.uid}|${ev.recurrenceId.toUnixTime()}`, ev);
     }
@@ -65,16 +73,26 @@ export function eventsInRange(ics: string, fallbackName: string, from: Date, to:
     });
   };
 
-  for (const comp of vevents) {
-    const ev = new ICAL.Event(comp);
+  for (const ev of events) {
+    const comp = ev.component;
     if (ev.isRecurrenceException()) continue; // handled via its series below
     if (!ev.isRecurring()) {
       push(ev, ev.startDate, ev.endDate);
       continue;
     }
+    // Skip series that ended before the window.
+    const rrule = comp.getFirstPropertyValue("rrule") as ICAL.Recur | null;
+    if (rrule?.until && rrule.until.toJSDate() < from) continue;
+
+    // Occurrences that end before the window are skipped cheaply; only ones
+    // near the window get their full details worked out.
+    const durationMs = ev.endDate.toJSDate().getTime() - ev.startDate.toJSDate().getTime();
+    const fromMs = from.getTime();
     const it = ev.iterator();
     for (let next = it.next(); next; next = it.next()) {
-      if (next.toJSDate() >= to) break;
+      const startMs = next.toJSDate().getTime();
+      if (startMs >= to.getTime()) break;
+      if (startMs + durationMs + 86_400_000 < fromMs) continue;
       const override = overrides.get(`${ev.uid}|${next.toUnixTime()}`);
       if (override) {
         push(override, override.startDate, override.endDate);
@@ -87,3 +105,13 @@ export function eventsInRange(ics: string, fallbackName: string, from: Date, to:
   return out;
 }
 
+
+// A property's raw value as written in the file (jCal), e.g. "2020-01-10T15:00:00Z",
+// without building ical.js objects.
+function rawProp(comp: ICAL.Component, name: string): string | undefined {
+  const props = comp.jCal[1] as unknown[][];
+  const p = props.find((x) => x[0] === name);
+  if (!p) return undefined;
+  const v = p[3];
+  return typeof v === "string" ? v : v ? JSON.stringify(v) : undefined;
+}

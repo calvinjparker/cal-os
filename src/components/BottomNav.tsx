@@ -2,9 +2,8 @@ import Link from "next/link";
 
 const tabs = [
   { href: "/", label: "Today" },
-  { href: "/orders", label: "Orders" },
-  { href: "/projects", label: "Projects" },
-  { href: "/places", label: "Places" },
+  { href: "/week", label: "Week" },
+  { href: "/rooms", label: "Rooms" },
 ];
 
 export function BottomNav({ active }: { active: string }) {

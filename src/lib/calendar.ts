@@ -26,8 +26,9 @@ export function hasCalendars() {
   return calendarFeeds().length > 0;
 }
 
-// Fetches every calendar and returns events from yesterday through the next two weeks
-// (two weeks so the Rooms panel can say who's arriving next).
+// Fetches every calendar and returns events from ~a month back through the next two weeks
+// (a month back for this month's room occupancy; two weeks ahead for the Week view and
+// who's arriving next).
 // Cached for a few minutes so the app isn't hitting Google on every page view.
 export async function getCalendarEvents(): Promise<{ events: FeedEvent[]; errors: string[] }> {
   "use cache: remote"; // shared across all servers, so most page loads skip fetching entirely
@@ -36,7 +37,7 @@ export async function getCalendarEvents(): Promise<{ events: FeedEvent[]; errors
   cacheLife({ stale: 60, revalidate: 300, expire: 86_400 });
 
   const now = Date.now();
-  const from = new Date(now - 36 * 3600_000);
+  const from = new Date(now - 32 * 24 * 3600_000);
   const to = new Date(now + 14 * 24 * 3600_000);
 
   const results: { events: FeedEvent[]; error: string | null }[] = await Promise.all(

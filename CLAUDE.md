@@ -31,14 +31,16 @@ Calvin's personal "life OS": a private web app for household and personal life a
 ## Features
 
 First version (agreed):
-- **Today screen:** where you are, today's schedule, to-dos that fit the current gap, goal knobs, leave-by countdown. Currently uses placeholder data from `src/lib/sample-data.ts`.
+- **Tabs:** Today (`/`), Week (`/week`), Rooms (`/rooms`). Shared header in `src/components/AppHeader.tsx`, ticket rows in `src/components/TicketLines.tsx`.
+- **Today screen:** what to wear, today's order ticket (calendar events plus room check-ins/outs), rooms panel, next-up countdown. All real data; no placeholders.
+- **Week:** the next 7 days, each day's lines built by `linesForDay` in `src/lib/today.ts` (`src/lib/week.ts`).
 - **Calendar:** Google Calendar, read-only via private iCal feeds, fetched server-side and cached a few minutes. One env var per calendar named `CALENDAR_ICS_<EMAIL_WITH_UNDERSCORES>` (e.g. `CALENDAR_ICS_CALVIN_CALVINPARKER_COM`); the label shown comes from the feed's own calendar name. Code: `src/lib/ics.ts` (parsing), `src/lib/calendar.ts` (fetching), `src/lib/today.ts` (today's ticket).
-- **Rooms:** Calvin rents rooms (often to pilots). Each room has its own calendar, env var `CALENDAR_ICS_STR_ROOM_<N>`; each event is a stay titled with the guest's name. The Rooms panel shows who's in each room and until when (or who's next); today's check-ins and check-outs go on the ticket. Room stays never appear as ordinary ticket lines. Code: `src/lib/rooms.ts`.
+- **Rooms:** Calvin rents rooms (often to pilots). Each room has its own calendar, env var `CALENDAR_ICS_STR_ROOM_<N>`; each event is a stay titled with the guest's name. The Rooms panel shows who's in each room and until when (or who's next); today's check-ins and check-outs go on the ticket. Room stays never appear as ordinary ticket lines. The Rooms tab lists current and upcoming stays (IN/OUT dates, nights), flags back-to-back turnovers, shows nights booked this month, and shows a turnover checklist (ticks saved in the browser's localStorage) when a guest checks out today or tomorrow. Calendar feeds are read from 32 days back to 14 days ahead. Code: `src/lib/rooms.ts`.
 - **Weather and what to wear:** Open-Meteo (free, no key), downtown Toronto for now, cached 15 min. `src/lib/weather.ts` fetches; `src/lib/wear.ts` turns the forecast plus today's events into advice (coldest feels-like until your last event ends, rain/snow, wind, games at Lamport, "wear <colour>" in an event title).
 - **To-dos:** stored in Supabase, tagged with place and rough duration so Today can match them to free time and location.
 - **Saved places:** home, Lamport Stadium, etc., matched against the phone's location when the app is open.
 
-Later ideas: morning brief, quick capture, project pages, leave-soon notifications, weekly review, household lists, sports schedules.
+Later ideas: quick capture, project pages, leave-soon notifications, household lists, sports schedules.
 
 ## Owner notes
 

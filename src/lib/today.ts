@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { calendarFeedNames, getCalendarEvents, type FeedEvent } from "@/lib/calendar";
-import { isRoomFeed, roomMomentsToday, roomStatuses, type RoomStatus } from "@/lib/rooms";
+import { isRoomFeed, roomMomentsOn, roomStatuses, type RoomStatus } from "@/lib/rooms";
 import { formatDuration, torontoDay, torontoTime } from "@/lib/time";
 import type { Outing } from "@/lib/wear";
 
@@ -38,26 +38,20 @@ function feedTag(feed: string) {
   return feed.split("_")[0];
 }
 
-// cache() makes every section of the page share one result per request,
-// so the calendars are fetched once per page load, not once per section.
-export const getTodaySchedule = cache(async (): Promise<TodaySchedule> => {
-  const now = new Date();
-  const { events, errors } = await getCalendarEvents();
-  const today = torontoDay(now);
-
-  const personal = events.filter((ev) => !isRoomFeed(ev.feed));
-  const todays = personal.filter((ev) => isToday(ev, today));
-  const lines: TicketLine[] = todays.map((ev) => {
-    const tag = feedTag(ev.feed);
-    if (ev.allDay) return { id: ev.id, time: "ALL DAY", sort: "0", title: ev.title, status: "upcoming", tag };
-    const start = new Date(ev.start);
-    const end = new Date(ev.end);
-    const status = end <= now ? "done" : start <= now ? "now" : "upcoming";
-    return { id: ev.id, time: torontoTime(start), sort: `1${ev.start}`, title: ev.title, status, tag };
-  });
-
-  // Room calendars: only today's arrivals and departures go on the ticket.
-  for (const m of roomMomentsToday(events, now)) {
+// Every line for one Toronto date: your events (with a tag for non-personal calendars)
+// plus room check-ins and check-outs. Shared by Today and the Week view.
+export function linesForDay(events: FeedEvent[], day: string, now: Date): TicketLine[] {
+  const lines: TicketLine[] = events
+    .filter((ev) => !isRoomFeed(ev.feed) && isToday(ev, day))
+    .map((ev) => {
+      const tag = feedTag(ev.feed);
+      if (ev.allDay) return { id: ev.id, time: "ALL DAY", sort: "0", title: ev.title, status: "upcoming" as const, tag };
+      const start = new Date(ev.start);
+      const end = new Date(ev.end);
+      const status = end <= now ? "done" : start <= now ? "now" : "upcoming";
+      return { id: ev.id, time: torontoTime(start), sort: `1${ev.start}`, title: ev.title, status, tag };
+    });
+  for (const m of roomMomentsOn(events, day)) {
     lines.push({
       id: `${m.room}|${m.kind}|${m.guest}`,
       time: m.time,
@@ -67,7 +61,19 @@ export const getTodaySchedule = cache(async (): Promise<TodaySchedule> => {
       tag: m.room.toUpperCase(),
     });
   }
-  lines.sort((a, b) => a.sort.localeCompare(b.sort));
+  return lines.sort((a, b) => a.sort.localeCompare(b.sort));
+}
+
+// cache() makes every section of the page share one result per request,
+// so the calendars are fetched once per page load, not once per section.
+export const getTodaySchedule = cache(async (): Promise<TodaySchedule> => {
+  const now = new Date();
+  const { events, errors } = await getCalendarEvents();
+  const today = torontoDay(now);
+
+  const personal = events.filter((ev) => !isRoomFeed(ev.feed));
+  const todays = personal.filter((ev) => isToday(ev, today));
+  const lines = linesForDay(events, today, now);
 
   // From the env vars, so a room with nothing booked still shows as empty.
   const roomFeeds = calendarFeedNames().filter(isRoomFeed).sort();

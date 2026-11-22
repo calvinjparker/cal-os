@@ -1,33 +1,16 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { BottomNav } from "@/components/BottomNav";
-import { Screws } from "@/components/Screws";
-import { TodayDate } from "@/components/TodayDate";
+import { TicketLines } from "@/components/TicketLines";
+import { AppHeader } from "@/components/AppHeader";
 import { getTodaySchedule, type TodaySchedule } from "@/lib/today";
 import { whatToWear } from "@/lib/wear";
-import { describe, getWeather } from "@/lib/weather";
+import { getWeather } from "@/lib/weather";
 
 export default function Today() {
   return (
     <div className="flex flex-1 flex-col pb-[96px]">
-      {/* Amp header: tweed band with a metal faceplate */}
-      <header className="tweed px-4 pt-[max(18px,env(safe-area-inset-top))] pb-5">
-        <div className="faceplate mx-auto flex max-w-md items-center justify-between px-5 py-4">
-          <Screws />
-          <h1 className="font-script text-[34px] leading-none text-oxblood">cal-os</h1>
-          <div className="flex items-center gap-2.5">
-            <div className="flex flex-col items-end">
-              <span className="font-label text-[15px] tracking-[0.12em]">
-                <TodayDate />
-              </span>
-              <Suspense fallback={<span className="font-label text-[11px] text-ink-muted">&nbsp;</span>}>
-                <HeaderWeather />
-              </Suspense>
-            </div>
-            <span aria-hidden="true" className="pilot size-4 border-[3px] border-[#8e8b84]" />
-          </div>
-        </div>
-      </header>
+      <AppHeader />
 
       <main className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 pt-5">
         <Suspense fallback={<TodaySkeleton />}>
@@ -52,17 +35,6 @@ async function TodayContent() {
       <RoomsPanel day={day} />
       <NextUpTile day={day} />
     </>
-  );
-}
-
-async function HeaderWeather() {
-  const weather = await getWeather();
-  if (!weather) return null;
-  return (
-    <span className="font-label text-[11px] tracking-[0.12em] text-ink-muted uppercase">
-      {Math.round(weather.now.temp)}° · {describe(weather.now.code)}
-      {Math.round(weather.now.feels) !== Math.round(weather.now.temp) && ` · feels ${Math.round(weather.now.feels)}°`}
-    </span>
   );
 }
 
@@ -99,23 +71,7 @@ function OrderTicket({ day }: { day: TodaySchedule }) {
       {day.lines.length === 0 ? (
         <p className="font-type text-sm text-ink-muted">Nothing on the calendar today.</p>
       ) : (
-        <ul className="flex flex-col gap-2 font-type text-sm">
-          {day.lines.map((line) => {
-            const done = line.status === "done";
-            const now = line.status === "now";
-            return (
-              <li key={line.id} className="flex gap-2.5">
-                <span className={`w-[72px] shrink-0 ${done ? "text-ink-faint" : ""} ${now ? "font-bold" : ""}`}>{line.time}</span>
-                <span className={`flex-1 ${done ? "text-ink-faint line-through" : ""} ${now ? "font-bold" : ""}`}>
-                  {line.tag && <span className="mr-1.5 bg-tolex px-1 py-px text-[10px] text-tolex-text">{line.tag}</span>}
-                  {line.title}
-                </span>
-                {done && <span className="text-ink-faint" aria-label="done">✓</span>}
-                {now && <span className="font-bold text-stamp">NOW</span>}
-              </li>
-            );
-          })}
-        </ul>
+        <TicketLines lines={day.lines} />
       )}
       {day.errors.length > 0 && (
         <p className="font-type text-[11px] text-stamp">Couldn&apos;t load: {day.errors.join(", ")}</p>

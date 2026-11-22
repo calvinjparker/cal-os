@@ -67,9 +67,8 @@ export function roomStatuses(events: FeedEvent[], roomFeeds: string[], now: Date
   });
 }
 
-// Today's arrivals and departures, for the order ticket.
-export function roomMomentsToday(events: FeedEvent[], now: Date): RoomMoment[] {
-  const today = torontoDay(now);
+// A day's arrivals and departures ("YYYY-MM-DD", Toronto), for the ticket and the Week view.
+export function roomMomentsOn(events: FeedEvent[], today: string): RoomMoment[] {
   const out: RoomMoment[] = [];
   for (const ev of events) {
     if (!isRoomFeed(ev.feed)) continue;
@@ -82,4 +81,66 @@ export function roomMomentsToday(events: FeedEvent[], now: Date): RoomMoment[] {
     }
   }
   return out;
+}
+
+// ---- Rooms tab: stays, occupancy and turnovers -------------------------------
+
+export type StayRow = Stay & {
+  id: string;
+  nights: number;
+  inDay: string; // "YYYY-MM-DD" (Toronto)
+  outDay: string; // "YYYY-MM-DD" (Toronto)
+  status: "current" | "upcoming";
+  backToBack: boolean; // next guest arrives the day this one leaves
+};
+
+export type RoomOverview = {
+  room: string;
+  stays: StayRow[]; // current + upcoming, in order
+  nightsThisMonth: number;
+  daysInMonth: number;
+};
+
+function daysBetween(a: string, b: string) {
+  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+}
+
+function addDays(day: string, n: number) {
+  return new Date(Date.parse(`${day}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+}
+
+export function roomOverviews(events: FeedEvent[], roomFeeds: string[], now: Date): RoomOverview[] {
+  const today = torontoDay(now);
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const nextMonth = addDays(`${today.slice(0, 7)}-28`, 4).slice(0, 7) + "-01";
+  const daysInMonth = daysBetween(monthStart, nextMonth);
+
+  return roomFeeds.map((feed) => {
+    const stays = events
+      .filter((e) => e.feed === feed)
+      .map((e) => ({ e, inDay: startDay(e), outDay: endDay(e) }))
+      .sort((a, b) => a.inDay.localeCompare(b.inDay));
+
+    // Nights booked this month: each night is the date you sleep there (in-day .. out-day - 1).
+    let nightsThisMonth = 0;
+    for (const s of stays) {
+      const from = s.inDay > monthStart ? s.inDay : monthStart;
+      const to = s.outDay < nextMonth ? s.outDay : nextMonth;
+      if (to > from) nightsThisMonth += daysBetween(from, to);
+    }
+
+    const rows: StayRow[] = stays
+      .filter((s) => s.outDay > today || isCurrent(s.e, now, today))
+      .map((s, i, arr) => ({
+        ...toStay(s.e),
+        id: s.e.id,
+        nights: Math.max(1, daysBetween(s.inDay, s.outDay)),
+        inDay: s.inDay,
+        outDay: s.outDay,
+        status: s.inDay <= today ? "current" : "upcoming",
+        backToBack: arr[i + 1]?.inDay === s.outDay,
+      }));
+
+    return { room: roomName(feed), stays: rows, nightsThisMonth, daysInMonth };
+  });
 }

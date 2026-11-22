@@ -24,9 +24,19 @@ Calvin's personal "life OS": a private web app for household and personal life a
 - Prefer free data sources that need no API keys where possible.
 - Keep dependencies minimal; prefer built-in Next.js and Supabase features over extra libraries.
 
+## Theme
+
+"Restomod": light mode, vintage amp faceplate x smokehouse order ticket. Tokens and component classes (`.tweed`, `.faceplate`, `.ticket`, `.keycap`, `.keycap-dark`, `.tag-recessed`, `.pilot`) live in `src/app/globals.css`. Fonts: Yellowtail (logo), Oswald (labels), Zilla Slab (headings), Courier Prime (typewriter), Inter (body), loaded via a `<link>` in the layout. Design concepts: https://claude.ai/artifact/G1aGMoW9dvDtCmDdGDAwjN
+
 ## Features
 
-Not decided yet. Add features here as they're agreed, one line each, with a short note on scope.
+First version (agreed):
+- **Today screen:** where you are, today's schedule, to-dos that fit the current gap, goal knobs, leave-by countdown. Currently uses placeholder data from `src/lib/sample-data.ts`.
+- **Calendar:** Google Calendar, read-only via private iCal feeds, fetched server-side.
+- **To-dos:** stored in Supabase, tagged with place and rough duration so Today can match them to free time and location.
+- **Saved places:** home, Lamport Stadium, etc., matched against the phone's location when the app is open.
+
+Later ideas: morning brief, quick capture, project pages, leave-soon notifications, weekly review, household lists, sports schedules.
 
 ## Owner notes
 

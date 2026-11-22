@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Calvin's personal life OS",
     start_url: "/",
     display: "standalone",
-    background_color: "#0f172a",
-    theme_color: "#0f172a",
+    background_color: "#efe5d1",
+    theme_color: "#2e2620",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },

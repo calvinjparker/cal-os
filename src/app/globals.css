@@ -1,24 +1,94 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Restomod theme: vintage amp faceplate x smokehouse order ticket, light mode. */
+@theme {
+  --color-paper: #efe5d1;
+  --color-ticket: #fffcf5;
+  --color-tile: #f8f3e8;
+  --color-tile-edge: #cdbf9f;
+  --color-tag: #ede3cf;
+  --color-ink: #231c16;
+  --color-ink-muted: #6e6255;
+  --color-ink-faint: #8b7e70;
+  --color-oxblood: #7a2a22;
+  --color-stamp: #a63a2b;
+  --color-pilot: #d8392c;
+  --color-chrome: #ecebe7;
+  --color-chrome-edge: #9c998f;
+  --color-screw: #a9a69e;
+  --color-tolex: #2e2620;
+  --color-tolex-text: #f2e7cc;
+  --color-tolex-muted: #b7a88c;
+  --color-tweed-a: #d9c9a3;
+  --color-tweed-b: #cdbb92;
+
+  --font-script: "Yellowtail", cursive;
+  --font-label: "Oswald", sans-serif;
+  --font-slab: "Zilla Slab", serif;
+  --font-type: "Courier Prime", ui-monospace, monospace;
+  --font-sans: "Inter", system-ui, sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer components {
+  .tweed {
+    background: repeating-linear-gradient(
+      45deg,
+      var(--color-tweed-a) 0px,
+      var(--color-tweed-a) 2px,
+      var(--color-tweed-b) 2px,
+      var(--color-tweed-b) 4px
+    );
+    box-shadow: inset 0 -3px 0 #a8946a, 0 4px 10px rgb(60 40 20 / 0.18);
+  }
+  .faceplate {
+    position: relative;
+    background: var(--color-chrome);
+    border-radius: 6px;
+    box-shadow:
+      inset 0 1px 0 #fff,
+      inset 0 -2px 0 #bdbab2,
+      0 2px 0 var(--color-chrome-edge),
+      0 6px 14px rgb(40 30 20 / 0.25);
+  }
+  .ticket {
+    position: relative;
+    background: var(--color-ticket);
+    box-shadow:
+      0 1px 0 #d8cbb3,
+      0 2px 3px rgb(60 40 20 / 0.12),
+      0 10px 22px rgb(60 40 20 / 0.14);
+  }
+  .keycap {
+    background: var(--color-tile);
+    border-radius: 8px;
+    box-shadow:
+      inset 0 1px 0 #fff,
+      0 3px 0 var(--color-tile-edge),
+      0 5px 10px rgb(60 40 20 / 0.12);
+  }
+  .keycap-dark {
+    background: var(--color-tolex);
+    color: var(--color-tolex-text);
+    border-radius: 8px;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.08),
+      0 3px 0 #17120e,
+      0 6px 12px rgb(40 25 15 / 0.25);
+  }
+  .tag-recessed {
+    background: var(--color-tag);
+    border-radius: 4px;
+    box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.12);
+  }
+  .pilot {
+    background: var(--color-pilot);
+    border-radius: 9999px;
+    box-shadow: 0 0 8px rgb(216 57 44 / 0.6);
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
 }

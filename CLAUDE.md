@@ -32,7 +32,7 @@ Calvin's personal "life OS": a private web app for household and personal life a
 
 First version (agreed):
 - **Today screen:** where you are, today's schedule, to-dos that fit the current gap, goal knobs, leave-by countdown. Currently uses placeholder data from `src/lib/sample-data.ts`.
-- **Calendar:** Google Calendar, read-only via private iCal feeds, fetched server-side.
+- **Calendar:** Google Calendar, read-only via private iCal feeds, fetched server-side and cached a few minutes. One env var per calendar named `CALENDAR_ICS_<EMAIL_WITH_UNDERSCORES>` (e.g. `CALENDAR_ICS_CALVIN_CALVINPARKER_COM`); the label shown comes from the feed's own calendar name. Code: `src/lib/ics.ts` (parsing), `src/lib/calendar.ts` (fetching), `src/lib/today.ts` (today's ticket).
 - **To-dos:** stored in Supabase, tagged with place and rough duration so Today can match them to free time and location.
 - **Saved places:** home, Lamport Stadium, etc., matched against the phone's location when the app is open.
 

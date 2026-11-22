@@ -6,7 +6,7 @@ Calvin's personal "life OS": a private web app for household and personal life a
 
 - **App:** Next.js (App Router) + React + TypeScript.
 - **Installable web app (PWA):** used primarily on Android, installed from Chrome ("Install app" / "Add to Home screen"). No Play Store. Uses the web app manifest in `src/app/manifest.ts` and icons in `public/` (including a maskable icon for Android), with a mobile-first layout. Add a service worker only when a feature needs one (offline support, push notifications).
-- **Database and auth:** Supabase (hosted Postgres + Supabase Auth). Only an allowlist of known users can sign in; there is no public sign-up.
+- **Database and auth:** Supabase project `cal-os` (Canada Central; RLS on new tables). Sign-in is Google via Supabase Auth; the Google OAuth client lives in the Google Cloud project `cal-os-515506` with an Internal consent screen (calvinparker.com accounts only). `src/proxy.ts` checks the session on every page and API route and only lets in emails listed in `ALLOWED_EMAILS` (currently just calvin@calvinparker.com); it fails closed if Supabase isn't configured. Env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `ALLOWED_EMAILS`.
 - **Hosting:** Vercel (Hobby plan). Every pull request gets a preview deployment; merging to `main` deploys to production.
 - **Code:** GitHub, `calvinjparker/cal-os`.
 
@@ -37,7 +37,8 @@ First version (agreed):
 - **Calendar:** Google Calendar, read-only via private iCal feeds, fetched server-side and cached a few minutes. One env var per calendar named `CALENDAR_ICS_<EMAIL_WITH_UNDERSCORES>` (e.g. `CALENDAR_ICS_CALVIN_CALVINPARKER_COM`); the label shown comes from the feed's own calendar name. Code: `src/lib/ics.ts` (parsing), `src/lib/calendar.ts` (fetching), `src/lib/today.ts` (today's ticket).
 - **Rooms:** Calvin rents rooms (often to pilots). Each room has its own calendar, env var `CALENDAR_ICS_STR_ROOM_<N>`; each event is a stay titled with the guest's name. The Rooms panel shows who's in each room and until when (or who's next); today's check-ins and check-outs go on the ticket. Room stays never appear as ordinary ticket lines. The Rooms tab lists current and upcoming stays (IN/OUT dates, nights), flags back-to-back turnovers, shows nights booked this month, and shows a turnover checklist (ticks saved in the browser's localStorage) when a guest checks out today or tomorrow. Calendar feeds are read from 32 days back to 14 days ahead. Code: `src/lib/rooms.ts`.
 - **Weather and what to wear:** Open-Meteo (free, no key), downtown Toronto for now, cached 15 min. `src/lib/weather.ts` fetches; `src/lib/wear.ts` turns the forecast plus today's events into advice (coldest feels-like until your last event ends, rain/snow, wind, games at Lamport, "wear <colour>" in an event title).
-- **To-dos:** stored in Supabase, tagged with place and rough duration so Today can match them to free time and location.
+- **Keep intake:** Today shows open items from the Google Keep note "CALV | PER | ADM | To Do Intake (Getting Things Done)" via the official Keep API: service account `cal-os-keep@cal-os-515506.iam.gserviceaccount.com` with domain-wide delegation (scope `https://www.googleapis.com/auth/keep`), key in `GOOGLE_KEEP_SA_KEY`, server-only, cached 5 min (`src/lib/keep.ts`). The Keep API can't edit existing notes, so the panel is read-only.
+- **To-dos:** Calvin's GTD intake lives in Keep; dated to-dos go on the matching GQueues calendar in Google Calendar.
 - **Saved places:** home, Lamport Stadium, etc., matched against the phone's location when the app is open.
 
 Later ideas: quick capture, project pages, leave-soon notifications, household lists, sports schedules.

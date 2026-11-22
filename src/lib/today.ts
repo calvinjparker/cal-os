@@ -3,6 +3,7 @@ import { cache } from "react";
 import { calendarFeedNames, getCalendarEvents, type FeedEvent } from "@/lib/calendar";
 import { isRoomFeed, roomMomentsToday, roomStatuses, type RoomStatus } from "@/lib/rooms";
 import { formatDuration, torontoDay, torontoTime } from "@/lib/time";
+import type { Outing } from "@/lib/wear";
 
 export type TicketLine = {
   id: string;
@@ -18,6 +19,7 @@ export type TodaySchedule = {
   upCount: number; // done + in progress
   nextUp: { title: string; in: string } | null;
   rooms: RoomStatus[];
+  outings: Outing[]; // today's timed events, for what-to-wear
   errors: string[];
 };
 
@@ -76,6 +78,9 @@ export const getTodaySchedule = cache(async (): Promise<TodaySchedule> => {
     upCount: lines.filter((l) => l.status !== "upcoming").length,
     nextUp: next ? { title: next.title, in: formatDuration(new Date(next.start).getTime() - now.getTime()) } : null,
     rooms: roomStatuses(events, roomFeeds, now),
+    outings: todays
+      .filter((ev) => !ev.allDay)
+      .map((ev) => ({ title: ev.title, start: ev.start, end: ev.end, location: ev.location })),
     errors,
   };
 });

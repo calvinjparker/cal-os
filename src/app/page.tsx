@@ -4,6 +4,8 @@ import { BottomNav } from "@/components/BottomNav";
 import { Screws } from "@/components/Screws";
 import { TodayDate } from "@/components/TodayDate";
 import { getTodaySchedule, type TodaySchedule } from "@/lib/today";
+import { whatToWear } from "@/lib/wear";
+import { describe, getWeather } from "@/lib/weather";
 
 export default function Today() {
   return (
@@ -14,9 +16,14 @@ export default function Today() {
           <Screws />
           <h1 className="font-script text-[34px] leading-none text-oxblood">cal-os</h1>
           <div className="flex items-center gap-2.5">
-            <span className="font-label text-[15px] tracking-[0.12em]">
-              <TodayDate />
-            </span>
+            <div className="flex flex-col items-end">
+              <span className="font-label text-[15px] tracking-[0.12em]">
+                <TodayDate />
+              </span>
+              <Suspense fallback={<span className="font-label text-[11px] text-ink-muted">&nbsp;</span>}>
+                <HeaderWeather />
+              </Suspense>
+            </div>
             <span aria-hidden="true" className="pilot size-4 border-[3px] border-[#8e8b84]" />
           </div>
         </div>
@@ -36,13 +43,43 @@ export default function Today() {
 // Everything that comes from the calendars, rendered from a single fetch.
 async function TodayContent() {
   await connection(); // render per request: "now" changes
-  const day = await getTodaySchedule();
+  const [day, weather] = await Promise.all([getTodaySchedule(), getWeather()]);
+  const wear = weather ? whatToWear(weather.hours, day.outings, new Date()) : null;
   return (
     <>
+      {wear && <WearCard wear={wear} />}
       <OrderTicket day={day} />
       <RoomsPanel day={day} />
       <NextUpTile day={day} />
     </>
+  );
+}
+
+async function HeaderWeather() {
+  const weather = await getWeather();
+  if (!weather) return null;
+  return (
+    <span className="font-label text-[11px] tracking-[0.12em] text-ink-muted uppercase">
+      {Math.round(weather.now.temp)}° · {describe(weather.now.code)}
+      {Math.round(weather.now.feels) !== Math.round(weather.now.temp) && ` · feels ${Math.round(weather.now.feels)}°`}
+    </span>
+  );
+}
+
+function WearCard({ wear }: { wear: NonNullable<ReturnType<typeof whatToWear>> }) {
+  return (
+    <section aria-labelledby="wear-heading" className="keycap flex flex-col gap-1.5 p-3.5">
+      <div className="flex items-baseline justify-between">
+        <h2 id="wear-heading" className="font-label text-[12px] font-semibold tracking-[0.18em] text-oxblood uppercase">What to wear</h2>
+        <span className="font-type text-[11px] text-ink-muted">{wear.window}</span>
+      </div>
+      <span className="font-slab text-xl leading-tight font-bold">{wear.headline}</span>
+      <ul className="flex flex-col gap-0.5 text-sm">
+        {wear.items.map((item) => (
+          <li key={item}>· {item}</li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

@@ -4,10 +4,18 @@ import { googleAccessToken } from "@/lib/google";
 // Read-only Gmail access (scope gmail.readonly), used only for the Toronto newsletters.
 const SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 
-// Full newsletters arrive via the cul.ent.newsletters.daily group; the abridged
-// digests from cul.ent.newsletters are a fallback for anything that hasn't come through.
-export const NEWSLETTER_QUERY =
-  "(deliveredto:cul.ent.newsletters.daily@calvinparker.com OR from:cul.ent.newsletters@calvinparker.com) newer_than:3d";
+// Full newsletters arrive via the "(Every Email)" groups for entertainment and music
+// (filtered into their Newsletters labels); the abridged digests from the main groups
+// are a fallback for anything that hasn't come through in full.
+export const NEWSLETTER_QUERY = [
+  "deliveredto:cul.ent.newsletters.daily@calvinparker.com",
+  "deliveredto:cul.mus.newsletters.daily@calvinparker.com",
+  "from:cul.ent.newsletters@calvinparker.com",
+  "from:cul.mus.newsletters@calvinparker.com",
+]
+  .join(" OR ")
+  .replace(/^/, "(")
+  .concat(") newer_than:3d");
 
 export type Newsletter = { id: string; from: string; subject: string; date: string; text: string };
 

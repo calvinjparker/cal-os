@@ -9,6 +9,12 @@ import { getWeather } from "@/lib/weather";
 import { getIntake } from "@/lib/keep";
 import { getPicks, hasPicks } from "@/lib/picks";
 import { torontoDay } from "@/lib/time";
+import { Drawing, SvgDefs } from "@/components/Drawing";
+import { availableItems, getWardrobe } from "@/lib/wardrobe";
+import { hasOutfitPicker, pickOutfit } from "@/lib/outfit";
+import type { Outing, WearAdvice } from "@/lib/wear";
+import { wearItems } from "@/app/closet/actions";
+import Link from "next/link";
 
 export default function Today() {
   return (
@@ -39,7 +45,11 @@ async function TodayContent() {
   const wear = weather ? whatToWear(weather.hours, day.outings, new Date()) : null;
   return (
     <>
-      {wear && <WearCard wear={wear} />}
+      {wear && (
+        <Suspense fallback={<WearCard wear={wear} />}>
+          <WearWithOutfit wear={wear} outings={day.outings} />
+        </Suspense>
+      )}
       <OrderTicket day={day} />
       <RoomsPanel day={day} />
       <NextUpTile day={day} />
@@ -47,7 +57,74 @@ async function TodayContent() {
   );
 }
 
-function WearCard({ wear }: { wear: NonNullable<ReturnType<typeof whatToWear>> }) {
+// The weather advice plus an actual outfit from the closet (or what you've logged as worn today).
+async function WearWithOutfit({ wear, outings }: { wear: WearAdvice; outings: Outing[] }) {
+  const day = torontoDay(new Date());
+  const wardrobe = await getWardrobe(day);
+  if (wardrobe.error || wardrobe.items.length === 0) return <WearCard wear={wear} />;
+  const byId = new Map(wardrobe.items.map((i) => [i.id, i]));
+
+  if (wardrobe.wornToday.length > 0) {
+    const worn = wardrobe.wornToday.map((id) => byId.get(id)).filter((i) => i !== undefined);
+    return (
+      <WearCard wear={wear}>
+        <SvgDefs html={wardrobe.svgDefs} />
+        <OutfitStrip items={worn} />
+        <p className="text-sm">
+          You wore this today. <Link href="/closet" className="underline decoration-tile-edge underline-offset-2">Change it in Closet</Link>
+        </p>
+      </WearCard>
+    );
+  }
+
+  if (!hasOutfitPicker()) return <WearCard wear={wear} />;
+  let pick: Awaited<ReturnType<typeof pickOutfit>> | null = null;
+  let failed: string | null = null;
+  try {
+    pick = await pickOutfit(day, availableItems(wardrobe.items), wear, outings);
+  } catch (e) {
+    failed = e instanceof Error ? e.message : "failed";
+  }
+  const items = (pick?.ids ?? []).map((id) => byId.get(id)).filter((i) => i !== undefined);
+  return (
+    <WearCard wear={wear}>
+      {failed && <p className="font-type text-[11px] text-stamp">Couldn&apos;t pick an outfit: {failed}</p>}
+      {items.length > 0 && (
+        <>
+          <SvgDefs html={wardrobe.svgDefs} />
+          <OutfitStrip items={items} />
+          {pick?.why && <p className="text-sm">{pick.why}</p>}
+          <div className="flex items-center justify-between gap-2">
+            <form action={wearItems}>
+              {items.map((i) => (
+                <input key={i.id} type="hidden" name="item" value={i.id} />
+              ))}
+              <button className="keycap-dark px-3 py-2 font-label text-[11px] tracking-[0.14em] uppercase">I wore this</button>
+            </form>
+            <Link href="/closet" className="font-type text-[12px] underline decoration-tile-edge underline-offset-2">
+              Wore something else
+            </Link>
+          </div>
+        </>
+      )}
+    </WearCard>
+  );
+}
+
+function OutfitStrip({ items }: { items: { id: number; name: string; svg: string | null }[] }) {
+  return (
+    <ul className="grid grid-cols-4 gap-2">
+      {items.map((i) => (
+        <li key={i.id} className="flex flex-col items-center gap-0.5 text-center">
+          <Drawing svg={i.svg} className="w-full" />
+          <span className="font-type text-[10px] leading-tight">{i.name}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function WearCard({ wear, children }: { wear: WearAdvice; children?: React.ReactNode }) {
   return (
     <section aria-labelledby="wear-heading" className="keycap flex flex-col gap-1.5 p-3.5">
       <div className="flex items-baseline justify-between">
@@ -60,6 +137,7 @@ function WearCard({ wear }: { wear: NonNullable<ReturnType<typeof whatToWear>> }
           <li key={item}>· {item}</li>
         ))}
       </ul>
+      {children}
     </section>
   );
 }

@@ -103,7 +103,7 @@ async function upcomingSchedule(now: Date): Promise<string> {
     .join("\n");
 }
 
-async function askClaude(prompt: string): Promise<string> {
+export async function askClaude(prompt: string): Promise<string> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {

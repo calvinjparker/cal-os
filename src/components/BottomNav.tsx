@@ -4,6 +4,7 @@ const tabs = [
   { href: "/", label: "Today" },
   { href: "/week", label: "Week" },
   { href: "/rooms", label: "Rooms" },
+  { href: "/closet", label: "Closet" },
 ];
 
 export function BottomNav({ active }: { active: string }) {

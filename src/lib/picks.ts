@@ -30,7 +30,7 @@ const ABOUT_CALVIN = `Calvin lives in downtown Toronto. Things he's into:
 - BBQ and smoking meats, good food and drink events, food festivals
 - fishing, boats (restoring a fibreglass boat), outdoors
 - tech/data meetups (works in analytics)
-Not interested in: kids' events, generic shopping promos, wellness/yoga, anything outside the GTA.`;
+Not interested in: ska, reggae and rocksteady, kids' events, generic shopping promos, wellness/yoga, anything outside the GTA.`;
 
 export function hasPicks() {
   return hasGoogle() && Boolean(process.env.ANTHROPIC_API_KEY);
@@ -97,13 +97,15 @@ async function choosePicks(day: string, newsletters: Newsletter[]): Promise<Pick
 
 ${ABOUT_CALVIN}
 
-His calendar for the next 10 days (times are Toronto, 12-hour):
+Calvin's calendar for the next 10 days (times are Toronto, 12-hour):
 ${schedule || "(nothing scheduled)"}
 
 Below are Toronto event newsletters from the last few days. Pick the 3 to 5 events Calvin would most want to know about, happening between today and 14 days from now. Prefer specific, dated events over general listings. Skip anything already past. For each pick, check his calendar: "free" if nothing overlaps, "conflict" if something does, "unknown" if the time isn't given. Use only details stated in the newsletters; never invent dates, times, venues or links. Some are Google Groups "Abridged summary" digests that show only the first lines of each email: pick from those too when an event's name and date are visible, using "unknown" for missing times and the digest's link to the topic if there is no event link. Return [] only if there is truly nothing upcoming in the GTA.
 
+The "why" lines are read by Calvin himself in his app: address him as "you" (e.g. "You're free that night..."), never "he", "his", "him" or "Calvin". If an event overlaps something on his calendar, mark it "conflict" and name the clash plainly in "why".
+
 Reply with only a JSON array, no other text:
-[{"title": "...", "when": "Sat Nov 28, 8:00 PM", "where": "venue, neighbourhood", "why": "one short line on why it fits him", "free": "free|conflict|unknown", "link": "https://... or null", "source": "newsletter name"}]
+[{"title": "...", "when": "Sat Nov 28, 8:00 PM", "where": "venue, neighbourhood", "why": "one short line to Calvin on why it fits, written as \"you\"", "free": "free|conflict|unknown", "link": "https://... or null", "source": "newsletter name"}]
 
 ${newsletters
   .map((n, i) => `=== Newsletter ${i + 1}: ${n.subject} — from ${n.from} — ${n.date}\n${n.text}`)

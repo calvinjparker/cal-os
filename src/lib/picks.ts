@@ -1,7 +1,7 @@
 import "server-only";
 import { cacheLife } from "next/cache";
 import { getCalendarEvents } from "@/lib/calendar";
-import { recentNewsletters, type Newsletter } from "@/lib/gmail";
+import { recentNewsletters, type Newsletter, type NewsletterGroup } from "@/lib/gmail";
 import { hasGoogle } from "@/lib/google";
 import { isRoomFeed } from "@/lib/rooms";
 import { torontoDate, torontoTime } from "@/lib/time";
@@ -20,7 +20,55 @@ export type Pick = {
   source: string;
 };
 
-export type Picks = { picks: Pick[]; newsletters: number; error: string | null; day: string };
+export type Category = {
+  key: string;
+  label: string;
+  groups: readonly NewsletterGroup[];
+  kind: "events" | "deals" | "notes";
+  brief: string;
+};
+
+// What each category's section is for. Events get checked against the calendar.
+export const CATEGORIES: Category[] = [
+  {
+    key: "ent",
+    label: "Out & about",
+    groups: ["cul.ent.newsletters"],
+    kind: "events",
+    brief: "Toronto events, food and drink, festivals and things to do. Pick events you'd genuinely leave the house for.",
+  },
+  {
+    key: "mus",
+    label: "Live music",
+    groups: ["cul.mus.newsletters"],
+    kind: "events",
+    brief: "Gigs, concerts, on-sale dates and gear news. Pick shows worth going to and on-sales worth catching.",
+  },
+  {
+    key: "acc",
+    label: "Deals",
+    groups: ["leg.acc.newsletters"],
+    kind: "deals",
+    brief: "Retail promotions and account emails. Pick only real, time-limited deals or offers worth acting on, with the end date if given. Skip generic marketing.",
+  },
+  {
+    key: "fas",
+    label: "Style",
+    groups: ["cul.fas.newsletters"],
+    kind: "deals",
+    brief: "Clothing and fashion newsletters. Pick real sales, drops or pieces worth a look, with the end date if given. Skip generic marketing.",
+  },
+  {
+    key: "nut",
+    label: "Food & nutrition",
+    groups: ["wel.nut.newsletters"],
+    kind: "notes",
+    brief: "Nutrition and food newsletters. Pick only genuinely useful items: a recipe worth cooking, a useful tip, or a deal on food. Skip filler.",
+  },
+];
+
+export type Section = { key: string; label: string; picks: Pick[]; newsletters: number; error: string | null };
+export type Picks = { sections: Section[]; day: string };
 
 const MODEL = "claude-sonnet-5-5";
 
@@ -72,47 +120,60 @@ async function askClaude(prompt: string): Promise<string> {
 }
 
 export async function getPicks(day: string): Promise<Picks> {
-  if (!hasPicks()) return { picks: [], newsletters: 0, error: null, day };
+  if (!hasPicks()) return { sections: [], day };
+  const sections = await Promise.all(CATEGORIES.map((c) => sectionFor(day, c)));
+  return { sections, day };
+}
+
+async function sectionFor(day: string, c: Category): Promise<Section> {
+  const base = { key: c.key, label: c.label };
   try {
-    const newsletters = await recentNewsletters();
-    if (newsletters.length === 0) return { picks: [], newsletters: 0, error: null, day };
-    const picks = await choosePicks(day, newsletters);
-    return { picks, newsletters: newsletters.length, error: null, day };
+    const newsletters = await recentNewsletters(c.groups);
+    if (newsletters.length === 0) return { ...base, picks: [], newsletters: 0, error: null };
+    const picks = await choosePicks(day, c.key, newsletters);
+    return { ...base, picks, newsletters: newsletters.length, error: null };
   } catch (e) {
-    return { picks: [], newsletters: 0, error: e instanceof Error ? e.message : "failed", day };
+    return { ...base, picks: [], newsletters: 0, error: e instanceof Error ? e.message : "failed" };
   }
 }
 
-// Cache key is the day plus the newsletters themselves, so a new newsletter arriving
-// gets fresh picks, and Claude runs at most once per day per set of newsletters.
-// Errors throw (and so are never cached).
-async function choosePicks(day: string, newsletters: Newsletter[]): Promise<Pick[]> {
+// Cache key is the day, category and the newsletters themselves, so a new newsletter
+// gets fresh picks and Claude runs at most once a day per set. Errors throw (never cached).
+async function choosePicks(day: string, key: string, newsletters: Newsletter[]): Promise<Pick[]> {
   "use cache: remote";
   cacheLife({ stale: 3600, revalidate: 6 * 3600, expire: 2 * 86_400 });
-  {
-    const now = new Date();
-    const schedule = await upcomingSchedule(now);
+  const c = CATEGORIES.find((x) => x.key === key)!;
+  const now = new Date();
+  const schedule = c.kind === "events" ? await upcomingSchedule(now) : "";
 
-    const prompt = `Today is ${torontoDate(now)} (${day}), Toronto.
+  const calendarBit =
+    c.kind === "events"
+      ? `Calvin's calendar for the next 10 days (Toronto time, 12-hour):
+${schedule || "(nothing scheduled)"}
+
+Only pick events between today and 14 days from now. Check each against his calendar: "free" if nothing overlaps, "conflict" if something does (name the clash plainly in "why"), "unknown" if no time is given. Drop events that almost certainly clash with something he has on.`
+      : `"when" is the deadline or end date if one is given (e.g. "Ends Sun Nov 29"), otherwise "". "where" is the store or brand. "free" is always "unknown".`;
+
+  const prompt = `Today is ${torontoDate(now)} (${day}), Toronto.
 
 ${ABOUT_CALVIN}
 
-Calvin's calendar for the next 10 days (times are Toronto, 12-hour):
-${schedule || "(nothing scheduled)"}
+This section of his app: ${c.label}. ${c.brief}
 
-Below are Toronto event newsletters from the last few days. Pick the 3 to 5 events Calvin would most want to know about, happening between today and 14 days from now. Prefer specific, dated events over general listings. Skip anything already past. For each pick, check his calendar: "free" if nothing overlaps, "conflict" if something does, "unknown" if the time isn't given. Use only details stated in the newsletters; never invent dates, times, venues or links. Some are Google Groups "Abridged summary" digests that show only the first lines of each email: pick from those too when an event's name and date are visible, using "unknown" for missing times and the digest's link to the topic if there is no event link. Return [] only if there is truly nothing upcoming in the GTA.
+${calendarBit}
 
-The "why" lines are read by Calvin himself in his app: address him as "you" (e.g. "You're free that night..."), never "he", "his", "him" or "Calvin". If an event overlaps something on his calendar, mark it "conflict" and name the clash plainly in "why".
+Be selective: 0 to 3 picks, only things clearly worth his attention; an empty list is fine. Use only details stated in the newsletters; never invent dates, times, places, prices or links. Some are Google Groups "Abridged summary" digests that show only the first lines of each email: use them only when the item itself is visible, and link to the digest's topic if there is no better link.
+
+The "why" lines are read by Calvin himself in his app: address him as "you", never "he", "his", "him" or "Calvin". One short line each.
 
 Reply with only a JSON array, no other text:
-[{"title": "...", "when": "Sat Nov 28, 8:00 PM", "where": "venue, neighbourhood", "why": "one short line to Calvin on why it fits, written as \"you\"", "free": "free|conflict|unknown", "link": "https://... or null", "source": "newsletter name"}]
+[{"title": "...", "when": "...", "where": "...", "why": "...", "free": "free|conflict|unknown", "link": "https://... or null", "source": "newsletter name"}]
 
 ${newsletters
   .map((n, i) => `=== Newsletter ${i + 1}: ${n.subject} — from ${n.from} — ${n.date}\n${n.text}`)
   .join("\n\n")}`;
 
-    const text = await askClaude(prompt);
-    const json = text.slice(text.indexOf("["), text.lastIndexOf("]") + 1);
-    return (JSON.parse(json) as Pick[]).slice(0, 5);
-  }
+  const text = await askClaude(prompt);
+  const json = text.slice(text.indexOf("["), text.lastIndexOf("]") + 1);
+  return (JSON.parse(json) as Pick[]).slice(0, 3);
 }

@@ -11,7 +11,13 @@ export async function GET() {
   await connection();
   const [anthropic, keep, calendar, gmail] = await Promise.all([checkAnthropic(), checkKeep(), checkCalendar(), checkGmail()]);
   const p = await getPicks(torontoDay(new Date()));
-  const picks = { ok: !p.error, error: p.error, newsletters: p.newsletters, picks: p.picks.map((x) => `${x.title} — ${x.when}`) };
+  const picks = p.sections.map((s) => ({
+    section: s.label,
+    ok: !s.error,
+    error: s.error,
+    newsletters: s.newsletters,
+    picks: s.picks.map((x) => `${x.title} — ${x.when}`),
+  }));
   return Response.json({ anthropic, keep, calendar, gmail, picks, checkedAt: new Date().toISOString() });
 }
 
@@ -51,7 +57,7 @@ async function checkCalendar() {
 async function checkGmail() {
   if (!hasKeep()) return { ok: false, error: "GOOGLE_KEEP_SA_KEY not set" };
   try {
-    const n = await recentNewsletters(200);
+    const n = await recentNewsletters(undefined, 200);
     return { ok: true, newsletters: n.length, subjects: n.slice(0, 5).map((x) => x.subject) };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "failed" };

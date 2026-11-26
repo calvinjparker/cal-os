@@ -159,35 +159,40 @@ function NextUpTile({ day }: { day: TodaySchedule }) {
 async function WorthALookPanel() {
   await connection();
   if (!hasPicks()) return null;
-  const { picks, error } = await getPicks(torontoDay(new Date()));
-  if (picks.length === 0 && !error) return null;
+  const { sections } = await getPicks(torontoDay(new Date()));
+  const shown = sections.filter((s) => s.picks.length > 0 || s.error);
+  if (shown.length === 0) return null;
   return (
-    <section aria-labelledby="picks-heading" className="ticket flex flex-col gap-2.5 px-[18px] pt-4 pb-4">
+    <section aria-labelledby="picks-heading" className="ticket flex flex-col gap-3 px-[18px] pt-4 pb-4">
       <h2 id="picks-heading" className="font-label text-[12px] font-semibold tracking-[0.18em] text-oxblood uppercase">Worth a look</h2>
-      {error && <p className="font-type text-[11px] text-stamp">Couldn&apos;t pick events: {error}</p>}
-      <ul className="flex flex-col gap-3">
-        {picks.map((p, i) => (
-          <li key={i} className="flex flex-col gap-0.5 border-b border-dashed border-tile-edge pb-2.5 last:border-0 last:pb-0">
-            <div className="flex items-baseline justify-between gap-2">
-              {p.link ? (
-                <a href={p.link} target="_blank" rel="noreferrer" className="font-slab text-[17px] leading-tight font-bold underline decoration-tile-edge underline-offset-2">
-                  {p.title}
-                </a>
-              ) : (
-                <span className="font-slab text-[17px] leading-tight font-bold">{p.title}</span>
-              )}
-              <span className={`shrink-0 font-type text-[10px] font-bold ${p.free === "conflict" ? "text-stamp" : "text-ink-muted"}`}>
-                {p.free === "free" ? "FREE THEN" : p.free === "conflict" ? "CONFLICT" : ""}
-              </span>
-            </div>
-            <span className="font-type text-[12px] text-ink-muted">
-              {p.when}
-              {p.where ? ` · ${p.where}` : ""}
-            </span>
-            <span className="text-sm">{p.why}</span>
-          </li>
-        ))}
-      </ul>
+      {shown.map((s) => (
+        <div key={s.key} className="flex flex-col gap-2">
+          <h3 className="font-label text-[11px] font-semibold tracking-[0.14em] text-ink-muted uppercase">{s.label}</h3>
+          {s.error && <p className="font-type text-[11px] text-stamp">Couldn&apos;t read these: {s.error}</p>}
+          <ul className="flex flex-col gap-3">
+            {s.picks.map((p, i) => (
+              <li key={i} className="flex flex-col gap-0.5 border-b border-dashed border-tile-edge pb-2.5 last:border-0 last:pb-0">
+                <div className="flex items-baseline justify-between gap-2">
+                  {p.link ? (
+                    <a href={p.link} target="_blank" rel="noreferrer" className="font-slab text-[17px] leading-tight font-bold underline decoration-tile-edge underline-offset-2">
+                      {p.title}
+                    </a>
+                  ) : (
+                    <span className="font-slab text-[17px] leading-tight font-bold">{p.title}</span>
+                  )}
+                  <span className={`shrink-0 font-type text-[10px] font-bold ${p.free === "conflict" ? "text-stamp" : "text-ink-muted"}`}>
+                    {p.free === "free" ? "FREE THEN" : p.free === "conflict" ? "CONFLICT" : ""}
+                  </span>
+                </div>
+                {(p.when || p.where) && (
+                  <span className="font-type text-[12px] text-ink-muted">{[p.when, p.where].filter(Boolean).join(" · ")}</span>
+                )}
+                <span className="text-sm">{p.why}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </section>
   );
 }

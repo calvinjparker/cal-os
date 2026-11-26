@@ -5,17 +5,20 @@ import { googleAccessToken } from "@/lib/google";
 // Read-only Gmail access (scope gmail.readonly), used only for the Toronto newsletters.
 const SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 
-// Full newsletters arrive via the "(Every Email)" groups for entertainment and music
-// (filtered into their Newsletters labels); the abridged digests from the main groups
-// are a fallback for anything that hasn't come through in full.
-export const NEWSLETTER_QUERY = [
-  // Gmail's list: matches both the full emails and the abridged digests of each group.
-  "list:cul.ent.newsletters.calvinparker.com",
-  "list:cul.mus.newsletters.calvinparker.com",
-]
-  .join(" OR ")
-  .replace(/^/, "(")
-  .concat(") newer_than:3d");
+// Newsletters land in one Google Group per category; Gmail's list: operator matches both
+// the full emails (via each "(Every Email)" child group) and the abridged digests.
+export const NEWSLETTER_GROUPS = [
+  "cul.ent.newsletters",
+  "cul.mus.newsletters",
+  "cul.fas.newsletters",
+  "leg.acc.newsletters",
+  "wel.nut.newsletters",
+] as const;
+export type NewsletterGroup = (typeof NEWSLETTER_GROUPS)[number];
+
+function newsletterQuery(groups: readonly string[]) {
+  return `(${groups.map((g) => `list:${g}.calvinparker.com`).join(" OR ")}) newer_than:3d`;
+}
 
 export type Newsletter = { id: string; from: string; subject: string; date: string; text: string };
 
@@ -61,13 +64,16 @@ async function gmail<T>(token: string, path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function recentNewsletters(maxChars = 15000): Promise<Newsletter[]> {
+export async function recentNewsletters(
+  groups: readonly string[] = NEWSLETTER_GROUPS,
+  maxChars = 15000,
+): Promise<Newsletter[]> {
   "use cache: remote";
   cacheLife({ stale: 600, revalidate: 1800, expire: 86_400 });
   const token = await googleAccessToken(SCOPE);
   const list = await gmail<{ messages?: { id: string }[] }>(
     token,
-    `messages?maxResults=15&q=${encodeURIComponent(NEWSLETTER_QUERY)}`,
+    `messages?maxResults=15&q=${encodeURIComponent(newsletterQuery(groups))}`,
   );
   const messages = await Promise.all(
     (list.messages ?? []).map((m) => gmail<Message>(token, `messages/${m.id}?format=full`)),

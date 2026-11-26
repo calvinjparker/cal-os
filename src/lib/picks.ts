@@ -1,7 +1,7 @@
 import "server-only";
 import { cacheLife } from "next/cache";
 import { getCalendarEvents } from "@/lib/calendar";
-import { recentNewsletters } from "@/lib/gmail";
+import { recentNewsletters, type Newsletter } from "@/lib/gmail";
 import { hasGoogle } from "@/lib/google";
 import { isRoomFeed } from "@/lib/rooms";
 import { torontoDate, torontoTime } from "@/lib/time";
@@ -71,16 +71,27 @@ async function askClaude(prompt: string): Promise<string> {
   return data.content.map((c) => c.text ?? "").join("");
 }
 
-// `day` (Toronto "YYYY-MM-DD") is part of the cache key, so picks refresh daily.
 export async function getPicks(day: string): Promise<Picks> {
-  "use cache: remote";
-  cacheLife({ stale: 3600, revalidate: 6 * 3600, expire: 2 * 86_400 });
-
   if (!hasPicks()) return { picks: [], newsletters: 0, error: null, day };
   try {
-    const now = new Date();
-    const [newsletters, schedule] = await Promise.all([recentNewsletters(), upcomingSchedule(now)]);
+    const newsletters = await recentNewsletters();
     if (newsletters.length === 0) return { picks: [], newsletters: 0, error: null, day };
+    const picks = await choosePicks(day, newsletters);
+    return { picks, newsletters: newsletters.length, error: null, day };
+  } catch (e) {
+    return { picks: [], newsletters: 0, error: e instanceof Error ? e.message : "failed", day };
+  }
+}
+
+// Cache key is the day plus the newsletters themselves, so a new newsletter arriving
+// gets fresh picks, and Claude runs at most once per day per set of newsletters.
+// Errors throw (and so are never cached).
+async function choosePicks(day: string, newsletters: Newsletter[]): Promise<Pick[]> {
+  "use cache: remote";
+  cacheLife({ stale: 3600, revalidate: 6 * 3600, expire: 2 * 86_400 });
+  {
+    const now = new Date();
+    const schedule = await upcomingSchedule(now);
 
     const prompt = `Today is ${torontoDate(now)} (${day}), Toronto.
 
@@ -89,7 +100,7 @@ ${ABOUT_CALVIN}
 His calendar for the next 10 days (times are Toronto, 12-hour):
 ${schedule || "(nothing scheduled)"}
 
-Below are Toronto event newsletters from the last few days. Pick the 3 to 5 events Calvin would most want to know about, happening between today and 14 days from now. Prefer specific, dated events over general listings. Skip anything already past. For each pick, check his calendar: "free" if nothing overlaps, "conflict" if something does, "unknown" if the time isn't given. Use only details stated in the newsletters; never invent dates, times, venues or links.
+Below are Toronto event newsletters from the last few days. Pick the 3 to 5 events Calvin would most want to know about, happening between today and 14 days from now. Prefer specific, dated events over general listings. Skip anything already past. For each pick, check his calendar: "free" if nothing overlaps, "conflict" if something does, "unknown" if the time isn't given. Use only details stated in the newsletters; never invent dates, times, venues or links. Some are Google Groups "Abridged summary" digests that show only the first lines of each email: pick from those too when an event's name and date are visible, using "unknown" for missing times and the digest's link to the topic if there is no event link. Return [] only if there is truly nothing upcoming in the GTA.
 
 Reply with only a JSON array, no other text:
 [{"title": "...", "when": "Sat Nov 28, 8:00 PM", "where": "venue, neighbourhood", "why": "one short line on why it fits him", "free": "free|conflict|unknown", "link": "https://... or null", "source": "newsletter name"}]
@@ -100,9 +111,6 @@ ${newsletters
 
     const text = await askClaude(prompt);
     const json = text.slice(text.indexOf("["), text.lastIndexOf("]") + 1);
-    const picks = (JSON.parse(json) as Pick[]).slice(0, 5);
-    return { picks, newsletters: newsletters.length, error: null, day };
-  } catch (e) {
-    return { picks: [], newsletters: 0, error: e instanceof Error ? e.message : "failed", day };
+    return (JSON.parse(json) as Pick[]).slice(0, 5);
   }
 }

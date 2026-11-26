@@ -1,4 +1,5 @@
 import "server-only";
+import { cacheLife } from "next/cache";
 import { googleAccessToken } from "@/lib/google";
 
 // Read-only Gmail access (scope gmail.readonly), used only for the Toronto newsletters.
@@ -62,6 +63,8 @@ async function gmail<T>(token: string, path: string): Promise<T> {
 }
 
 export async function recentNewsletters(maxChars = 15000): Promise<Newsletter[]> {
+  "use cache: remote";
+  cacheLife({ stale: 600, revalidate: 1800, expire: 86_400 });
   const token = await googleAccessToken(SCOPE);
   const list = await gmail<{ messages?: { id: string }[] }>(
     token,

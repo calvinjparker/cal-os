@@ -9,10 +9,9 @@ const SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 // (filtered into their Newsletters labels); the abridged digests from the main groups
 // are a fallback for anything that hasn't come through in full.
 export const NEWSLETTER_QUERY = [
-  "deliveredto:cul.ent.newsletters.daily@calvinparker.com",
-  "deliveredto:cul.mus.newsletters.daily@calvinparker.com",
-  "from:cul.ent.newsletters@calvinparker.com",
-  "from:cul.mus.newsletters@calvinparker.com",
+  // Gmail's list: matches both the full emails and the abridged digests of each group.
+  "list:cul.ent.newsletters.calvinparker.com",
+  "list:cul.mus.newsletters.calvinparker.com",
 ]
   .join(" OR ")
   .replace(/^/, "(")

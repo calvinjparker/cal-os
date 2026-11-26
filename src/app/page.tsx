@@ -7,6 +7,8 @@ import { getTodaySchedule, type TodaySchedule } from "@/lib/today";
 import { whatToWear } from "@/lib/wear";
 import { getWeather } from "@/lib/weather";
 import { getIntake } from "@/lib/keep";
+import { getPicks, hasPicks } from "@/lib/picks";
+import { torontoDay } from "@/lib/time";
 
 export default function Today() {
   return (
@@ -16,6 +18,9 @@ export default function Today() {
       <main className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 pt-5">
         <Suspense fallback={<TodaySkeleton />}>
           <TodayContent />
+        </Suspense>
+        <Suspense fallback={null}>
+          <WorthALookPanel />
         </Suspense>
         <Suspense fallback={null}>
           <IntakePanel />
@@ -147,6 +152,43 @@ function NextUpTile({ day }: { day: TodaySchedule }) {
         {day.nextUp && <span className="truncate font-type text-[11px] text-[#c9b994]">{day.nextUp.title}</span>}
       </div>
     </div>
+  );
+}
+
+// Toronto events Claude picked from the newsletters (refreshed daily).
+async function WorthALookPanel() {
+  await connection();
+  if (!hasPicks()) return null;
+  const { picks, error } = await getPicks(torontoDay(new Date()));
+  if (picks.length === 0 && !error) return null;
+  return (
+    <section aria-labelledby="picks-heading" className="ticket flex flex-col gap-2.5 px-[18px] pt-4 pb-4">
+      <h2 id="picks-heading" className="font-label text-[12px] font-semibold tracking-[0.18em] text-oxblood uppercase">Worth a look</h2>
+      {error && <p className="font-type text-[11px] text-stamp">Couldn&apos;t pick events: {error}</p>}
+      <ul className="flex flex-col gap-3">
+        {picks.map((p, i) => (
+          <li key={i} className="flex flex-col gap-0.5 border-b border-dashed border-tile-edge pb-2.5 last:border-0 last:pb-0">
+            <div className="flex items-baseline justify-between gap-2">
+              {p.link ? (
+                <a href={p.link} target="_blank" rel="noreferrer" className="font-slab text-[17px] leading-tight font-bold underline decoration-tile-edge underline-offset-2">
+                  {p.title}
+                </a>
+              ) : (
+                <span className="font-slab text-[17px] leading-tight font-bold">{p.title}</span>
+              )}
+              <span className={`shrink-0 font-type text-[10px] font-bold ${p.free === "conflict" ? "text-stamp" : "text-ink-muted"}`}>
+                {p.free === "free" ? "FREE THEN" : p.free === "conflict" ? "CONFLICT" : ""}
+              </span>
+            </div>
+            <span className="font-type text-[12px] text-ink-muted">
+              {p.when}
+              {p.where ? ` · ${p.where}` : ""}
+            </span>
+            <span className="text-sm">{p.why}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

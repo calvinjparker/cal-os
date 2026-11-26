@@ -1,13 +1,14 @@
 import { connection } from "next/server";
 import { getIntake, hasKeep } from "@/lib/keep";
 import { getCalendarEvents, hasCalendars } from "@/lib/calendar";
+import { recentNewsletters } from "@/lib/gmail";
 
 // Signed-in only (proxy.ts guards /api). Reports whether each integration works,
 // never the secrets themselves.
 export async function GET() {
   await connection();
-  const [anthropic, keep, calendar] = await Promise.all([checkAnthropic(), checkKeep(), checkCalendar()]);
-  return Response.json({ anthropic, keep, calendar, checkedAt: new Date().toISOString() });
+  const [anthropic, keep, calendar, gmail] = await Promise.all([checkAnthropic(), checkKeep(), checkCalendar(), checkGmail()]);
+  return Response.json({ anthropic, keep, calendar, gmail, checkedAt: new Date().toISOString() });
 }
 
 async function checkAnthropic() {
@@ -41,4 +42,14 @@ async function checkCalendar() {
   if (!hasCalendars()) return { ok: false, error: "no CALENDAR_ICS_* feeds" };
   const { events, errors } = await getCalendarEvents();
   return { ok: errors.length === 0, events: events.length, errors };
+}
+
+async function checkGmail() {
+  if (!hasKeep()) return { ok: false, error: "GOOGLE_KEEP_SA_KEY not set" };
+  try {
+    const n = await recentNewsletters(200);
+    return { ok: true, newsletters: n.length, subjects: n.slice(0, 5).map((x) => x.subject) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "failed" };
+  }
 }

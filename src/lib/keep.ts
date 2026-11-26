@@ -1,6 +1,6 @@
 import "server-only";
-import { createSign } from "node:crypto";
 import { cacheLife } from "next/cache";
+import { googleAccessToken, hasGoogle } from "@/lib/google";
 
 // Google Keep via the official Keep API (Workspace only). A service account with
 // domain-wide delegation acts as Calvin. Its JSON key lives in GOOGLE_KEEP_SA_KEY;
@@ -8,11 +8,8 @@ import { cacheLife } from "next/cache";
 //
 // The Keep API can list, read and create notes, but cannot edit an existing note.
 
-const KEEP_USER = process.env.GOOGLE_KEEP_USER ?? "calvin@calvinparker.com";
 const SCOPE = "https://www.googleapis.com/auth/keep";
 const INTAKE_TITLE = "To Do Intake";
-
-type ServiceAccountKey = { client_email: string; private_key: string; token_uri?: string };
 
 export type IntakeItem = { text: string; checked: boolean };
 export type Intake = { title: string; items: IntakeItem[]; updated: string | null };
@@ -28,36 +25,11 @@ type KeepNote = {
 };
 
 export function hasKeep() {
-  return Boolean(process.env.GOOGLE_KEEP_SA_KEY);
+  return hasGoogle();
 }
 
-function base64url(input: string | Buffer) {
-  return Buffer.from(input).toString("base64url");
-}
-
-// Service-account OAuth: sign a JWT (RS256) and swap it for a 1-hour access token.
-// Python equivalent: google.oauth2.service_account.Credentials.with_subject(...).
-async function accessToken(): Promise<string> {
-  const key = JSON.parse(process.env.GOOGLE_KEEP_SA_KEY!) as ServiceAccountKey;
-  const tokenUri = key.token_uri ?? "https://oauth2.googleapis.com/token";
-  const now = Math.floor(Date.now() / 1000);
-  const header = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const claims = base64url(
-    JSON.stringify({ iss: key.client_email, sub: KEEP_USER, scope: SCOPE, aud: tokenUri, iat: now, exp: now + 3600 }),
-  );
-  const signature = createSign("RSA-SHA256").update(`${header}.${claims}`).sign(key.private_key, "base64url");
-
-  const res = await fetch(tokenUri, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: `${header}.${claims}.${signature}`,
-    }),
-    signal: AbortSignal.timeout(5000),
-  });
-  if (!res.ok) throw new Error(`Keep auth failed (${res.status})`);
-  return ((await res.json()) as { access_token: string }).access_token;
+async function accessToken() {
+  return googleAccessToken(SCOPE);
 }
 
 async function listNotes(token: string): Promise<KeepNote[]> {
